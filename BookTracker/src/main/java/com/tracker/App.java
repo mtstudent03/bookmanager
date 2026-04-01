@@ -30,11 +30,13 @@ class User {
     int userId;
     int age;
     String gender;
+    String name;
 
-    public User(int userId, int age, String gender) {
+    public User(int userId, int age, String gender, String name) {
         this.userId = userId;
         this.age = age;
         this.gender = gender;
+        this.name = name;
     }
 }
 
@@ -55,7 +57,8 @@ class DatabaseManager {
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         userID INTEGER UNIQUE,
                         age INTEGER,
-                        gender TEXT
+                        gender TEXT,
+                        Name TEXT
                     )
                 """);
 
@@ -101,12 +104,13 @@ class DatabaseManager {
         System.out.println("Habit deleted!");
     }
 
-    public void addUser(int userId, int age, String gender) throws SQLException {
+    public void addUser(int userId, int age, String gender, String name) throws SQLException {
         PreparedStatement ps = conn.prepareStatement(
-                "INSERT INTO users (userID, age, gender) VALUES (?, ?, ?)");
+                "INSERT INTO users (userID, age, gender, Name) VALUES (?, ?, ?, ?)");
         ps.setInt(1, userId);
         ps.setInt(2, age);
         ps.setString(3, gender);
+        ps.setString(4, name);
         ps.executeUpdate();
     }
 
@@ -117,6 +121,7 @@ class DatabaseManager {
                     resultUser.getInt("userID") + " | " +
                             resultUser.getInt("age") + " | " +
                             resultUser.getString("gender") + " | " +
+                            resultUser.getString("Name") + " | " +
                             resultUser.getInt("id"));
         }
 
@@ -150,6 +155,41 @@ class DatabaseManager {
         }
     }
 
+    public void printMeanUserAge() throws SQLException {
+        ResultSet rs = conn.createStatement().executeQuery("SELECT AVG(age) AS mean_age FROM users");
+        if (rs.next()) {
+            System.out.println("Mean age of users: " + rs.getDouble("mean_age"));
+        }
+    }
+
+    public void printUserCountByBook(String bookTitle) throws SQLException {
+        PreparedStatement ps = conn.prepareStatement(
+                "SELECT COUNT(DISTINCT userID) AS user_count FROM reading_habits WHERE book = ?");
+        ps.setString(1, bookTitle);
+        ResultSet rs = ps.executeQuery();
+        if (rs.next()) {
+            System.out.println("Total users that read '" + bookTitle + "': " + rs.getInt("user_count"));
+        }
+    }
+
+    public void printTotalPagesRead() throws SQLException {
+        ResultSet rs = conn.createStatement().executeQuery(
+                "SELECT COALESCE(SUM(pagesRead), 0) AS total_pages FROM reading_habits");
+        if (rs.next()) {
+            System.out.println("Total pages read by all users: " + rs.getInt("total_pages"));
+        }
+    }
+
+    public void printUsersWithMoreThanOneBook() throws SQLException {
+        ResultSet rs = conn.createStatement().executeQuery(
+                "SELECT COUNT(*) AS total_users FROM (" +
+                        "SELECT userID FROM reading_habits GROUP BY userID HAVING COUNT(DISTINCT book) > 1" +
+                        ")");
+        if (rs.next()) {
+            System.out.println("Users that read more than one book: " + rs.getInt("total_users"));
+        }
+    }
+
     public void close() throws SQLException {
         conn.close();
     }
@@ -169,10 +209,18 @@ class ExcelLoader {
                 firstUserRow = false;
                 continue;
             }
+            String name = "Unknown";
+            if (row.getLastCellNum() > 3 && row.getCell(3) != null) {
+                String rawName = row.getCell(3).toString().trim();
+                if (!rawName.isEmpty()) {
+                    name = rawName;
+                }
+            }
             db.addUser(
                     (int) Double.parseDouble(row.getCell(0).toString()),
                     (int) Double.parseDouble(row.getCell(1).toString()),
-                    row.getCell(2).toString());
+                    row.getCell(2).toString(),
+                    name);
         }
 
         // Load reading habits from sheet 1
@@ -216,7 +264,11 @@ public class App {
             System.out.println("4. Add a user");
             System.out.println("5. Update book title");
             System.out.println("6. Delete a habit");
-            System.out.println("7. Exit");
+            System.out.println("7. Provide mean age of users");
+            System.out.println("8. Provide total users that read a specific book");
+            System.out.println("9. Provide total pages read by all users");
+            System.out.println("10. Provide total users that read more than one book");
+            System.out.println("11. Exit");
             System.out.print("Choose an option: ");
 
             int choice = scanner.nextInt();
@@ -243,7 +295,10 @@ public class App {
                     int age = scanner.nextInt();
                     System.out.print("Enter gender: ");
                     String gender = scanner.next();
-                    db.addUser(newUserId, age, gender);
+                    scanner.nextLine();
+                    System.out.print("Enter name: ");
+                    String name = scanner.nextLine();
+                    db.addUser(newUserId, age, gender, name);
                     System.out.println("User added!");
                     break;
 
@@ -264,6 +319,25 @@ public class App {
                     break;
 
                 case 7:
+                    db.printMeanUserAge();
+                    break;
+
+                case 8:
+                    System.out.print("Enter book title: ");
+                    scanner.nextLine();
+                    String bookTitle = scanner.nextLine();
+                    db.printUserCountByBook(bookTitle);
+                    break;
+
+                case 9:
+                    db.printTotalPagesRead();
+                    break;
+
+                case 10:
+                    db.printUsersWithMoreThanOneBook();
+                    break;
+
+                case 11:
                     running = false;
                     System.out.println("Goodbye!");
                     break;
