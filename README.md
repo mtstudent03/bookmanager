@@ -137,9 +137,3 @@ Enter the number of your desired action and follow the prompts.
 
 - The database is fully reset on every application start; manually added users/habits are not persisted across restarts unless the Excel file is updated.
 - `SubmissionTime` is recorded as the current timestamp at load time, not sourced from the Excel file.
-
----
-
-## License
-
-This project is for educational purposes. Feel free to use and adapt it.
